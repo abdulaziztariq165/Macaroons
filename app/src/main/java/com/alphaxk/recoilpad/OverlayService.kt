@@ -38,9 +38,9 @@ class OverlayService : Service() {
     private var editing = false
     private var panelShown = false
 
-    // متغيرات حالة جديدة
     private var isScoping = false
     private var isFiring = false
+    private var activePointerId = -1 // لتتبع الإصبع الذي يضغط على زر الإطلاق
     private var autoFireJob: Job? = null
     private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -124,19 +124,17 @@ class OverlayService : Service() {
     }
 
     private fun buildViews() {
-        val markerSize = Ui.dp(ui, 68)
-
         fireMarker = CircleView(ui, "زر الإطلاق", Ui.BLUE, false)
         aimMarker = CircleView(ui, "التصويب", Ui.GREEN, false)
         scopeMarker = CircleView(ui, "زر المنظار", Ui.AMBER, false)
         trigger = CircleView(ui, "إطلاق", Ui.RED, true)
         scopeBtn = CircleView(ui, "منظار", Ui.AMBER, true)
 
-        addWindow(fireMarker, markerSize, Prefs.fireX, Prefs.fireY, false)
-        addWindow(aimMarker, markerSize, Prefs.aimX, Prefs.aimY, false)
-        addWindow(scopeMarker, markerSize, Prefs.scopeX, Prefs.scopeY, false)
-        addWindow(trigger, Prefs.triggerSize, Prefs.trigX, Prefs.trigY, true)
-        addWindow(scopeBtn, Prefs.triggerSize, Prefs.scBtnX, Prefs.scBtnY, true)
+        addWindow(fireMarker, Prefs.sizeFireMarker, Prefs.fireX, Prefs.fireY, false)
+        addWindow(aimMarker, Prefs.sizeAimMarker, Prefs.aimX, Prefs.aimY, false)
+        addWindow(scopeMarker, Prefs.sizeScopeMarker, Prefs.scopeX, Prefs.scopeY, false)
+        addWindow(trigger, Prefs.sizeTrigger, Prefs.trigX, Prefs.trigY, true)
+        addWindow(scopeBtn, Prefs.sizeScopeBtn, Prefs.scBtnX, Prefs.scBtnY, true)
         
         fireMarker.visibility = View.GONE
         aimMarker.visibility = View.GONE
@@ -152,7 +150,6 @@ class OverlayService : Service() {
         aimMarker.setOnTouchListener { v, e -> dAim(v, e) }
         scopeMarker.setOnTouchListener { v, e -> dScopeM(v, e) }
 
-        // --- إصلاح زر المنظار (الضغط المستمر) ---
         scopeBtn.setOnTouchListener { v, e ->
             if (editing) {
                 dScopeB(v, e)
@@ -171,43 +168,87 @@ class OverlayService : Service() {
             }
         }
 
-        // --- إصلاح زر الإطلاق وإضافة الرشاش ---
+        // --- إصلاح مشكلة توقف الإطلاق عند اللمس المتعدد ---
         trigger.setOnTouchListener { v, e ->
             if (editing) {
                 dTrig(v, e)
             } else {
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        activePointerId = e.getPointerId(0) // حفظ معرف الإصبع الذي ضغط الزر
                         isFiring = true
                         if (isScoping) {
-                            // المنظار مفتوح: تفعيل التعويض أو الرشاش
-                            if (Prefs.autoFireEnabled) {
-                                startAutoFire()
-                            } else {
-                                startRecoil(applyCompensation = true)
-                            }
+                            if (Prefs.autoFireEnabled) startAutoFire() else startRecoil(true)
                         } else {
-                            // المنظار مغلق: ضغطة عادية بدون تعويض
-                            startRecoil(applyCompensation = false)
+                            startRecoil(false)
                         }
                     }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        // التحقق مما إذا كان الإصبع المرفوع هو نفس الإصبع الذي ضغط على الزر
+                        val pointerIndex = e.actionIndex
+                        val pointerId = e.getPointerId(pointerIndex)
+                        if (pointerId == activePointerId) {
+                            isFiring = false
+                            stopAutoFire()
+                            RecoilEngine.release()
+                        }
+                    }
+                    MotionEvent.ACTION_UP -> {
                         isFiring = false
+                        activePointerId = -1
                         stopAutoFire()
                         RecoilEngine.release()
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        // تجاهل CANCEL الناتج عن لمس الشاشة بإصبع آخر
+                        // فقط أوقف إذا كان النظام قد ألغى الزر فعلياً
                     }
                 }
                 true
             }
         }
 
-        editBtn = Ui.button(ui, "ضبط", Ui.GRAY, small = true) { setEditing(!editing) }
+        // --- زر الضبط (سحب وضغط) ---
+        editBtn = Ui.button(ui, "ضبط", Ui.GRAY, small = true) { }
+        var isDraggingEdit = false
+        var startX = 0f; var startY = 0f
+        var downTime: Long = 0
+
+        editBtn.setOnTouchListener { v, e ->
+            val p = params[v]!!
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = e.rawX - p.x
+                    startY = e.rawY - p.y
+                    downTime = System.currentTimeMillis()
+                    isDraggingEdit = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (Math.abs(e.rawX - p.x - startX) > 10 || Math.abs(e.rawY - p.y - startY) > 10) {
+                        isDraggingEdit = true
+                        p.x = (e.rawX - startX).toInt()
+                        p.y = (e.rawY - startY).toInt()
+                        wm.updateViewLayout(v, p)
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (isDraggingEdit) {
+                        Prefs.editX = p.x + p.width / 2
+                        Prefs.editY = p.y + p.height / 2
+                    } else {
+                        setEditing(!editing)
+                    }
+                }
+            }
+            true
+        }
+
         val bp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, baseFlags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = Ui.dp(ui, 10); y = Ui.dp(ui, 44); alpha = 0.7f
+            x = Prefs.editX; y = Prefs.editY; alpha = 0.7f
         }
         params[editBtn] = bp
         wm.addView(editBtn, bp)
@@ -218,18 +259,13 @@ class OverlayService : Service() {
             setPadding(Ui.dp(ui, 16), Ui.dp(ui, 12), Ui.dp(ui, 16), Ui.dp(ui, 12))
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             addView(Ui.text(ui, "الإعدادات", 17f, Ui.TEXT, true))
-            addView(Ui.text(ui, "اسحب الدوائر لتحديد أماكنها", 12f, Ui.MUTED))
-            
-            // ملاحظة: ستحتاج إلى إضافة أزرار (Switch) للتحكم في autoFireEnabled و autoFireIntervalMs في واجهة Ui.settings
             addView(Ui.settings(ui) { resizeButtons() })
-            
             addView(Ui.button(ui, "إيقاف الطبقة", Ui.RED, small = true) { stopSelf() })
         }
         panel = ScrollView(ui).apply { addView(content) }
     }
 
     private fun startRecoil(applyCompensation: Boolean) {
-        // إذا لم يكن هناك تعويض، نجعل نقطة التصويب هي نفسها نقطة الإطلاق
         val aimX = if (applyCompensation) Prefs.aimX.toFloat() else Prefs.fireX.toFloat()
         val aimY = if (applyCompensation) Prefs.aimY.toFloat() else Prefs.fireY.toFloat()
         
@@ -245,9 +281,9 @@ class OverlayService : Service() {
         autoFireJob = mainScope.launch {
             while (isActive && isFiring) {
                 startRecoil(applyCompensation = true)
-                delay(40L) // مدة الضغطة الواحدة
+                delay(40L)
                 RecoilEngine.release()
-                delay(Prefs.autoFireIntervalMs.toLong()) // الفاصل الزمني بين كل ضغطة (السرعة)
+                delay(Prefs.autoFireIntervalMs.toLong())
             }
         }
     }
@@ -258,13 +294,19 @@ class OverlayService : Service() {
     }
 
     private fun resizeButtons() {
-        for (v in listOf(trigger, scopeBtn)) {
+        val views = mapOf(
+            trigger to Prefs.sizeTrigger,
+            scopeBtn to Prefs.sizeScopeBtn,
+            fireMarker to Prefs.sizeFireMarker,
+            aimMarker to Prefs.sizeAimMarker,
+            scopeMarker to Prefs.sizeScopeMarker
+        )
+        for ((v, size) in views) {
             val p = params[v] ?: continue
             val cx = p.x + p.width / 2
             val cy = p.y + p.height / 2
-            val s = Prefs.triggerSize
-            p.width = s; p.height = s
-            p.x = cx - s / 2; p.y = cy - s / 2
+            p.width = size; p.height = size
+            p.x = cx - size / 2; p.y = cy - size / 2
             wm.updateViewLayout(v, p)
         }
     }
