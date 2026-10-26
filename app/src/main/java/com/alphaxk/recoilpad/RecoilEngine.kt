@@ -4,10 +4,6 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 
-/**
- * أصابع مُحقنة: 0 = المنظار، 1 = الإطلاق، 2 = التصويب (السحب للأسفل).
- * كلها تُنفَّذ على خيط واحد بالترتيب.
- */
 object RecoilEngine {
     private const val SCOPE = 0
     private const val FIRE = 1
@@ -37,7 +33,9 @@ object RecoilEngine {
                         aimOn = true
                     }
                     if (t - delay <= Prefs.durationMs) {
-                        curY = minOf(curY + Prefs.strength / 10f, maxY)
+                        // تم تعديل المعادلة لتعمل بقوة أكبر
+                        val moveAmount = Prefs.strength * 0.4f
+                        curY = minOf(curY + moveAmount, maxY)
                         ShizukuBridge.move(AIM, ax, curY)
                     }
                 }
