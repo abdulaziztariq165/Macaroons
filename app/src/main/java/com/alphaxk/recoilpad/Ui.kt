@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 
 object Ui {
@@ -64,6 +65,24 @@ object Ui {
         ).apply { bottomMargin = dp(c, 12) }
     }
 
+    fun switch(c: Context, label: String, get: () -> Boolean, set: (Boolean) -> Unit): View {
+        val box = LinearLayout(c).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(c, 8), 0, dp(c, 8))
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val tv = text(c, label, 14f, TEXT).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val sw = Switch(c).apply {
+            isChecked = get()
+            setOnCheckedChangeListener { _, isChecked -> set(isChecked) }
+        }
+        box.addView(tv)
+        box.addView(sw)
+        return box
+    }
+
     fun slider(
         c: Context, label: String, min: Int, max: Int,
         get: () -> Int, set: (Int) -> Unit, onChange: () -> Unit = {},
@@ -96,9 +115,20 @@ object Ui {
         orientation = LinearLayout.VERTICAL
         addView(slider(c, "قوة السحب للأسفل", 0, 100, { Prefs.strength }, { Prefs.strength = it },
             fmt = { "%.1f".format(it / 10f) }))
-        addView(slider(c, "مدة التعويض (مللي ثانية)", 100, 2000, { Prefs.durationMs }, { Prefs.durationMs = it }))
+        
+        // 5 دقائق = 300,000 مللي ثانية
+        addView(slider(c, "مدة التعويض (مللي ثانية)", 100, 300000, { Prefs.durationMs }, { Prefs.durationMs = it }))
         addView(slider(c, "تأخير البداية (مللي ثانية)", 0, 500, { Prefs.delayMs }, { Prefs.delayMs = it }))
-        addView(slider(c, "حجم الأزرار", 80, 300, { Prefs.triggerSize }, { Prefs.triggerSize = it }, onSize))
+        
+        addView(switch(c, "تفعيل الضغط المتكرر (رشاش)", { Prefs.autoFireEnabled }, { Prefs.autoFireEnabled = it }))
+        addView(slider(c, "سرعة الرشاش (مللي ثانية)", 20, 500, { Prefs.autoFireIntervalMs }, { Prefs.autoFireIntervalMs = it }))
+
+        // التحكم بحجم كل زر على حدة (الحد الأقصى 200% من الحجم الافتراضي)
+        addView(slider(c, "حجم زر الإطلاق", 80, 320, { Prefs.sizeTrigger }, { Prefs.sizeTrigger = it }, onSize))
+        addView(slider(c, "حجم زر المنظار", 80, 320, { Prefs.sizeScopeBtn }, { Prefs.sizeScopeBtn = it }, onSize))
+        addView(slider(c, "حجم علامة الإطلاق", 30, 136, { Prefs.sizeFireMarker }, { Prefs.sizeFireMarker = it }, onSize))
+        addView(slider(c, "حجم علامة التصويب", 30, 136, { Prefs.sizeAimMarker }, { Prefs.sizeAimMarker = it }, onSize))
+        addView(slider(c, "حجم علامة المنظار", 30, 136, { Prefs.sizeScopeMarker }, { Prefs.sizeScopeMarker = it }, onSize))
     }
 }
 
