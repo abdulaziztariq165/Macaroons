@@ -48,10 +48,28 @@ object Prefs {
         get() = int("aim_y", -1)
         set(v) = put("aim_y", v)
 
+    // --- المتغيرات المضافة حديثاً ---
+    var scopeX: Int
+        get() = int("scope_x", -1)
+        set(v) = put("scope_x", v)
+    var scopeY: Int
+        get() = int("scope_y", -1)
+        set(v) = put("scope_y", v)
+    var scBtnX: Int
+        get() = int("sc_btn_x", -1)
+        set(v) = put("sc_btn_x", v)
+    var scBtnY: Int
+        get() = int("sc_btn_y", -1)
+        set(v) = put("sc_btn_y", v)
+
     /** w = الضلع الأطول، h = الضلع الأقصر (وضع أفقي) */
     fun ensureDefaults(w: Int, h: Int) {
         if (trigX < 0) { trigX = (w * 0.88f).toInt(); trigY = (h * 0.78f).toInt() }
         if (fireX < 0) { fireX = (w * 0.78f).toInt(); fireY = (h * 0.62f).toInt() }
         if (aimX < 0) { aimX = (w * 0.65f).toInt(); aimY = (h * 0.38f).toInt() }
+        
+        // إحداثيات افتراضية للمنظار (المنتصف العلوي) وزر المنظار (اليسار السفلي)
+        if (scopeX < 0) { scopeX = (w * 0.50f).toInt(); scopeY = (h * 0.30f).toInt() }
+        if (scBtnX < 0) { scBtnX = (w * 0.12f).toInt(); scBtnY = (h * 0.78f).toInt() }
     }
 }
