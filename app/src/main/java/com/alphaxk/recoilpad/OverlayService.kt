@@ -131,6 +131,7 @@ class OverlayService : Service() {
         addWindow(scopeMarker, markerSize, Prefs.scopeX, Prefs.scopeY, false)
         addWindow(trigger, Prefs.triggerSize, Prefs.trigX, Prefs.trigY, true)
         addWindow(scopeBtn, Prefs.triggerSize, Prefs.scBtnX, Prefs.scBtnY, true)
+        
         fireMarker.visibility = View.GONE
         aimMarker.visibility = View.GONE
         scopeMarker.visibility = View.GONE
@@ -140,6 +141,7 @@ class OverlayService : Service() {
         val dScopeM = dragHandler { x, y -> Prefs.scopeX = x; Prefs.scopeY = y }
         val dTrig = dragHandler { x, y -> Prefs.trigX = x; Prefs.trigY = y }
         val dScopeB = dragHandler { x, y -> Prefs.scBtnX = x; Prefs.scBtnY = y }
+        
         fireMarker.setOnTouchListener { v, e -> dFire(v, e) }
         aimMarker.setOnTouchListener { v, e -> dAim(v, e) }
         scopeMarker.setOnTouchListener { v, e -> dScopeM(v, e) }
