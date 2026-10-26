@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RecoilPad</string>
+    <string name="accessibility_desc">Menangkap gesture untuk trigger recoil compensation overlay.</string>
+</resources>
