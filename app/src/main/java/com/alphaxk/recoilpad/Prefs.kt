@@ -18,10 +18,9 @@ object Prefs {
     private fun put(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
 
     var strength: Int
-        get() = int("strength", 6)
+        get() = int("strength", 20) // قمنا برفع القيمة الافتراضية لتكون ملحوظة
         set(v) = put("strength", v)
         
-    // المدة القصوى الافتراضية 5 دقائق (300,000 مللي ثانية)
     var durationMs: Int
         get() = int("duration", 300000)
         set(v) = put("duration", v)
@@ -37,6 +36,11 @@ object Prefs {
     var autoFireIntervalMs: Int
         get() = int("auto_fire_interval", 100)
         set(v) = put("auto_fire_interval", v)
+
+    // شفافية لوحة الإعدادات (10% إلى 100%)
+    var panelAlpha: Int
+        get() = int("panel_alpha", 90)
+        set(v) = put("panel_alpha", v)
 
     // --- أحجام الأزرار المستقلة (البكسل) ---
     var sizeTrigger: Int
