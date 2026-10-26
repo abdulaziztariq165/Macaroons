@@ -27,8 +27,10 @@ class OverlayService : Service() {
     private lateinit var wm: WindowManager
     private lateinit var ui: Context
     private lateinit var trigger: CircleView
+    private lateinit var scopeBtn: CircleView
     private lateinit var fireMarker: CircleView
     private lateinit var aimMarker: CircleView
+    private lateinit var scopeMarker: CircleView
     private lateinit var editBtn: Button
     private lateinit var panel: View
     private val params = HashMap<View, WindowManager.LayoutParams>()
@@ -120,19 +122,27 @@ class OverlayService : Service() {
 
         fireMarker = CircleView(ui, "زر الإطلاق", Ui.BLUE, false)
         aimMarker = CircleView(ui, "التصويب", Ui.GREEN, false)
+        scopeMarker = CircleView(ui, "زر المنظار", Ui.AMBER, false)
         trigger = CircleView(ui, "إطلاق", Ui.RED, true)
+        scopeBtn = CircleView(ui, "منظار", Ui.AMBER, true)
 
         addWindow(fireMarker, markerSize, Prefs.fireX, Prefs.fireY, false)
         addWindow(aimMarker, markerSize, Prefs.aimX, Prefs.aimY, false)
+        addWindow(scopeMarker, markerSize, Prefs.scopeX, Prefs.scopeY, false)
         addWindow(trigger, Prefs.triggerSize, Prefs.trigX, Prefs.trigY, true)
+        addWindow(scopeBtn, Prefs.triggerSize, Prefs.scBtnX, Prefs.scBtnY, true)
         fireMarker.visibility = View.GONE
         aimMarker.visibility = View.GONE
+        scopeMarker.visibility = View.GONE
 
         val dFire = dragHandler { x, y -> Prefs.fireX = x; Prefs.fireY = y }
         val dAim = dragHandler { x, y -> Prefs.aimX = x; Prefs.aimY = y }
+        val dScopeM = dragHandler { x, y -> Prefs.scopeX = x; Prefs.scopeY = y }
         val dTrig = dragHandler { x, y -> Prefs.trigX = x; Prefs.trigY = y }
+        val dScopeB = dragHandler { x, y -> Prefs.scBtnX = x; Prefs.scBtnY = y }
         fireMarker.setOnTouchListener { v, e -> dFire(v, e) }
         aimMarker.setOnTouchListener { v, e -> dAim(v, e) }
+        scopeMarker.setOnTouchListener { v, e -> dScopeM(v, e) }
 
         trigger.setOnTouchListener { v, e ->
             if (editing) {
@@ -145,6 +155,19 @@ class OverlayService : Service() {
                         resources.displayMetrics.heightPixels.toFloat()
                     )
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.release()
+                }
+                true
+            }
+        }
+
+        scopeBtn.setOnTouchListener { v, e ->
+            if (editing) {
+                dScopeB(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN ->
+                        RecoilEngine.scopeDown(Prefs.scopeX.toFloat(), Prefs.scopeY.toFloat())
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.scopeUp()
                 }
                 true
             }
@@ -170,27 +193,30 @@ class OverlayService : Service() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             addView(Ui.text(ui, "الإعدادات", 17f, Ui.TEXT, true))
             addView(Ui.text(ui, "اسحب الدوائر لتحديد أماكنها", 12f, Ui.MUTED))
-            addView(Ui.settings(ui) { resizeTrigger() })
+            addView(Ui.settings(ui) { resizeButtons() })
             addView(Ui.button(ui, "إيقاف الطبقة", Ui.RED, small = true) { stopSelf() })
         }
         panel = ScrollView(ui).apply { addView(content) }
     }
 
-    private fun resizeTrigger() {
-        val p = params[trigger] ?: return
-        val cx = p.x + p.width / 2
-        val cy = p.y + p.height / 2
-        val s = Prefs.triggerSize
-        p.width = s; p.height = s
-        p.x = cx - s / 2; p.y = cy - s / 2
-        wm.updateViewLayout(trigger, p)
+    private fun resizeButtons() {
+        for (v in listOf(trigger, scopeBtn)) {
+            val p = params[v] ?: continue
+            val cx = p.x + p.width / 2
+            val cy = p.y + p.height / 2
+            val s = Prefs.triggerSize
+            p.width = s; p.height = s
+            p.x = cx - s / 2; p.y = cy - s / 2
+            wm.updateViewLayout(v, p)
+        }
     }
 
     private fun setEditing(on: Boolean) {
         RecoilEngine.release()
+        RecoilEngine.scopeUp()
         editing = on
         editBtn.text = if (on) "تم ✓" else "ضبط"
-        for (m in listOf(fireMarker, aimMarker)) {
+        for (m in listOf(fireMarker, aimMarker, scopeMarker)) {
             m.visibility = if (on) View.VISIBLE else View.GONE
             setTouchable(m, on)
         }
@@ -220,6 +246,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         RecoilEngine.release()
+        RecoilEngine.scopeUp()
         hidePanel()
         for (v in params.keys) {
             try { wm.removeView(v) } catch (_: Throwable) {}
