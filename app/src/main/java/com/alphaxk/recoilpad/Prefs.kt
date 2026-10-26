@@ -4,46 +4,54 @@ import android.content.Context
 import android.content.SharedPreferences
 
 object Prefs {
-    private const val NAME = "recoil_prefs"
-    private lateinit var prefs: SharedPreferences
+    private lateinit var sp: SharedPreferences
 
-    fun init(context: Context) {
-        prefs = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+    fun init(c: Context) {
+        if (!::sp.isInitialized) {
+            sp = c.applicationContext.getSharedPreferences("recoil_prefs", Context.MODE_PRIVATE)
+        }
     }
 
-    var triggerX: Int
-        get() = prefs.getInt("trigger_x", 500)
-        set(v) = prefs.edit().putInt("trigger_x", v).apply()
+    private fun int(key: String, def: Int) = sp.getInt(key, def)
+    private fun put(key: String, v: Int) = sp.edit().putInt(key, v).apply()
 
-    var triggerY: Int
-        get() = prefs.getInt("trigger_y", 1200)
-        set(v) = prefs.edit().putInt("trigger_y", v).apply()
-
+    var strength: Int
+        get() = int("strength", 6)
+        set(v) = put("strength", v)
+    var durationMs: Int
+        get() = int("duration", 600)
+        set(v) = put("duration", v)
+    var delayMs: Int
+        get() = int("delay", 80)
+        set(v) = put("delay", v)
     var triggerSize: Int
-        get() = prefs.getInt("trigger_size", 120)
-        set(v) = prefs.edit().putInt("trigger_size", v).apply()
+        get() = int("trigger_size", 160)
+        set(v) = put("trigger_size", v)
 
-    var triggerAlpha: Float
-        get() = prefs.getFloat("trigger_alpha", 0.5f)
-        set(v) = prefs.edit().putFloat("trigger_alpha", v).apply()
+    // مراكز العناصر على الشاشة (بالبكسل). -1 = لم تُحدَّد بعد
+    var trigX: Int
+        get() = int("trig_x", -1)
+        set(v) = put("trig_x", v)
+    var trigY: Int
+        get() = int("trig_y", -1)
+        set(v) = put("trig_y", v)
+    var fireX: Int
+        get() = int("fire_x", -1)
+        set(v) = put("fire_x", v)
+    var fireY: Int
+        get() = int("fire_y", -1)
+        set(v) = put("fire_y", v)
+    var aimX: Int
+        get() = int("aim_x", -1)
+        set(v) = put("aim_x", v)
+    var aimY: Int
+        get() = int("aim_y", -1)
+        set(v) = put("aim_y", v)
 
-    var mode: Int // 0 = hold, 1 = single, 2 = burst
-        get() = prefs.getInt("mode", 0)
-        set(v) = prefs.edit().putInt("mode", v).apply()
-
-    var recoilStrength: Float
-        get() = prefs.getFloat("recoil_strength", 1.0f)
-        set(v) = prefs.edit().putFloat("recoil_strength", v).apply()
-
-    var recoilDurationMs: Int
-        get() = prefs.getInt("recoil_duration", 200)
-        set(v) = prefs.edit().putInt("recoil_duration", v).apply()
-
-    var burstCount: Int
-        get() = prefs.getInt("burst_count", 3)
-        set(v) = prefs.edit().putInt("burst_count", v).apply()
-
-    var burstIntervalMs: Int
-        get() = prefs.getInt("burst_interval", 100)
-        set(v) = prefs.edit().putInt("burst_interval", v).apply()
+    /** w = الضلع الأطول، h = الضلع الأقصر (وضع أفقي) */
+    fun ensureDefaults(w: Int, h: Int) {
+        if (trigX < 0) { trigX = (w * 0.88f).toInt(); trigY = (h * 0.78f).toInt() }
+        if (fireX < 0) { fireX = (w * 0.78f).toInt(); fireY = (h * 0.62f).toInt() }
+        if (aimX < 0) { aimX = (w * 0.65f).toInt(); aimY = (h * 0.38f).toInt() }
+    }
 }
