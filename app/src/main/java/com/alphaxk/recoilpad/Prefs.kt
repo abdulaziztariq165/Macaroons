@@ -18,9 +18,17 @@ object Prefs {
     private fun put(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
 
     var strength: Int
-        get() = int("strength", 20) // قمنا برفع القيمة الافتراضية لتكون ملحوظة
+        get() = int("strength", 20) // القوة الرأسية
         set(v) = put("strength", v)
         
+    var strengthX: Int
+        get() = int("strength_x", 0) // القوة الأفقية (0 يعني مفيش سحب يمين/شمال)
+        set(v) = put("strength_x", v)
+        
+    var curveExp: Int
+        get() = int("curve_exp", 15) // منحنى التعويض (من 10 لـ 30)
+        set(v) = put("curve_exp", v)
+
     var durationMs: Int
         get() = int("duration", 300000)
         set(v) = put("duration", v)
@@ -29,7 +37,6 @@ object Prefs {
         get() = int("delay", 80)
         set(v) = put("delay", v)
 
-    // إعدادات الضغط المتكرر
     var autoFireEnabled: Boolean
         get() = bool("auto_fire_enabled", false)
         set(v) = put("auto_fire_enabled", v)
@@ -37,12 +44,11 @@ object Prefs {
         get() = int("auto_fire_interval", 100)
         set(v) = put("auto_fire_interval", v)
 
-    // شفافية لوحة الإعدادات (10% إلى 100%)
     var panelAlpha: Int
         get() = int("panel_alpha", 90)
         set(v) = put("panel_alpha", v)
 
-    // --- أحجام الأزرار المستقلة (البكسل) ---
+    // --- أحجام الأزرار المستقلة ---
     var sizeTrigger: Int
         get() = int("size_trigger", 160)
         set(v) = put("size_trigger", v)
@@ -59,7 +65,6 @@ object Prefs {
         get() = int("size_scope_marker", 68)
         set(v) = put("size_scope_marker", v)
 
-    // إحداثيات زر الضبط
     var editX: Int
         get() = int("edit_x", -1)
         set(v) = put("edit_x", v)
@@ -67,7 +72,6 @@ object Prefs {
         get() = int("edit_y", -1)
         set(v) = put("edit_y", v)
 
-    // مراكز العناصر على الشاشة
     var trigX: Int
         get() = int("trig_x", -1)
         set(v) = put("trig_x", v)
