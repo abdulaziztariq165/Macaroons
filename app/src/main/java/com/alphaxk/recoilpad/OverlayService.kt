@@ -18,6 +18,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import kotlinx.coroutines.*
 
 class OverlayService : Service() {
     companion object {
@@ -36,6 +37,12 @@ class OverlayService : Service() {
     private val params = HashMap<View, WindowManager.LayoutParams>()
     private var editing = false
     private var panelShown = false
+
+    // متغيرات حالة جديدة
+    private var isScoping = false
+    private var isFiring = false
+    private var autoFireJob: Job? = null
+    private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -85,7 +92,6 @@ class OverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
             x = cx - size / 2
             y = cy - size / 2
-            // أندرويد 12+ يحجب اللمس عبر نوافذ شفافيتها أعلى من 0.8
             alpha = 0.7f
         }
         params[v] = p
@@ -146,36 +152,55 @@ class OverlayService : Service() {
         aimMarker.setOnTouchListener { v, e -> dAim(v, e) }
         scopeMarker.setOnTouchListener { v, e -> dScopeM(v, e) }
 
-        trigger.setOnTouchListener { v, e ->
-            if (editing) {
-                dTrig(v, e)
-            } else {
-                when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> RecoilEngine.press(
-                        Prefs.fireX.toFloat(), Prefs.fireY.toFloat(),
-                        Prefs.aimX.toFloat(), Prefs.aimY.toFloat(),
-                        resources.displayMetrics.heightPixels.toFloat()
-                    )
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.release()
-                }
-                true
-            }
-        }
-
+        // --- إصلاح زر المنظار (الضغط المستمر) ---
         scopeBtn.setOnTouchListener { v, e ->
             if (editing) {
                 dScopeB(v, e)
             } else {
                 when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN ->
+                    MotionEvent.ACTION_DOWN -> {
+                        isScoping = true
                         RecoilEngine.scopeDown(Prefs.scopeX.toFloat(), Prefs.scopeY.toFloat())
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.scopeUp()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        isScoping = false
+                        RecoilEngine.scopeUp()
+                    }
                 }
                 true
             }
         }
 
-        // زر «ضبط» الصغير
+        // --- إصلاح زر الإطلاق وإضافة الرشاش ---
+        trigger.setOnTouchListener { v, e ->
+            if (editing) {
+                dTrig(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        isFiring = true
+                        if (isScoping) {
+                            // المنظار مفتوح: تفعيل التعويض أو الرشاش
+                            if (Prefs.autoFireEnabled) {
+                                startAutoFire()
+                            } else {
+                                startRecoil(applyCompensation = true)
+                            }
+                        } else {
+                            // المنظار مغلق: ضغطة عادية بدون تعويض
+                            startRecoil(applyCompensation = false)
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        isFiring = false
+                        stopAutoFire()
+                        RecoilEngine.release()
+                    }
+                }
+                true
+            }
+        }
+
         editBtn = Ui.button(ui, "ضبط", Ui.GRAY, small = true) { setEditing(!editing) }
         val bp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -187,7 +212,6 @@ class OverlayService : Service() {
         params[editBtn] = bp
         wm.addView(editBtn, bp)
 
-        // لوحة الإعدادات (تُضاف فقط في وضع الضبط)
         val content = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             background = Ui.rounded(Ui.CARD, Ui.dp(ui, 18).toFloat())
@@ -195,10 +219,42 @@ class OverlayService : Service() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             addView(Ui.text(ui, "الإعدادات", 17f, Ui.TEXT, true))
             addView(Ui.text(ui, "اسحب الدوائر لتحديد أماكنها", 12f, Ui.MUTED))
+            
+            // ملاحظة: ستحتاج إلى إضافة أزرار (Switch) للتحكم في autoFireEnabled و autoFireIntervalMs في واجهة Ui.settings
             addView(Ui.settings(ui) { resizeButtons() })
+            
             addView(Ui.button(ui, "إيقاف الطبقة", Ui.RED, small = true) { stopSelf() })
         }
         panel = ScrollView(ui).apply { addView(content) }
+    }
+
+    private fun startRecoil(applyCompensation: Boolean) {
+        // إذا لم يكن هناك تعويض، نجعل نقطة التصويب هي نفسها نقطة الإطلاق
+        val aimX = if (applyCompensation) Prefs.aimX.toFloat() else Prefs.fireX.toFloat()
+        val aimY = if (applyCompensation) Prefs.aimY.toFloat() else Prefs.fireY.toFloat()
+        
+        RecoilEngine.press(
+            Prefs.fireX.toFloat(), Prefs.fireY.toFloat(),
+            aimX, aimY,
+            resources.displayMetrics.heightPixels.toFloat()
+        )
+    }
+
+    private fun startAutoFire() {
+        autoFireJob?.cancel()
+        autoFireJob = mainScope.launch {
+            while (isActive && isFiring) {
+                startRecoil(applyCompensation = true)
+                delay(40L) // مدة الضغطة الواحدة
+                RecoilEngine.release()
+                delay(Prefs.autoFireIntervalMs.toLong()) // الفاصل الزمني بين كل ضغطة (السرعة)
+            }
+        }
+    }
+
+    private fun stopAutoFire() {
+        autoFireJob?.cancel()
+        autoFireJob = null
     }
 
     private fun resizeButtons() {
@@ -214,8 +270,12 @@ class OverlayService : Service() {
     }
 
     private fun setEditing(on: Boolean) {
+        isScoping = false
+        isFiring = false
+        stopAutoFire()
         RecoilEngine.release()
         RecoilEngine.scopeUp()
+        
         editing = on
         editBtn.text = if (on) "تم ✓" else "ضبط"
         for (m in listOf(fireMarker, aimMarker, scopeMarker)) {
@@ -247,6 +307,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        mainScope.cancel()
+        stopAutoFire()
         RecoilEngine.release()
         RecoilEngine.scopeUp()
         hidePanel()
