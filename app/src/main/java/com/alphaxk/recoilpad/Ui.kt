@@ -56,15 +56,6 @@ object Ui {
             setOnClickListener { onClick() }
         }
 
-    fun card(c: Context) = LinearLayout(c).apply {
-        orientation = LinearLayout.VERTICAL
-        background = rounded(CARD, dp(c, 18).toFloat())
-        setPadding(dp(c, 16), dp(c, 14), dp(c, 16), dp(c, 14))
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(c, 12) }
-    }
-
     fun switch(c: Context, label: String, get: () -> Boolean, set: (Boolean) -> Unit): View {
         val box = LinearLayout(c).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -113,18 +104,27 @@ object Ui {
 
     fun settings(c: Context, onSize: () -> Unit = {}, onAlpha: () -> Unit = {}) = LinearLayout(c).apply {
         orientation = LinearLayout.VERTICAL
-        addView(slider(c, "قوة السحب للأسفل", 1, 100, { Prefs.strength }, { Prefs.strength = it },
-            fmt = { "%.1f".format(it / 10f) }))
+        
+        // إعدادات الارتداد
+        addView(text(c, "--- إعدادات التعويض ---", 15f, AMBER, true))
+        addView(slider(c, "قوة السحب (رأسي Y)", 1, 100, { Prefs.strength }, { Prefs.strength = it }))
+        addView(slider(c, "قوة السحب (أفقي X)", -100, 100, { Prefs.strengthX }, { Prefs.strengthX = it }))
+        addView(slider(c, "انحناء الارتداد (Curve)", 10, 30, { Prefs.curveExp }, { Prefs.curveExp = it }, fmt = { "%.1f".format(it / 10f) }))
         
         addView(slider(c, "مدة التعويض (مللي ثانية)", 100, 300000, { Prefs.durationMs }, { Prefs.durationMs = it }))
         addView(slider(c, "تأخير البداية (مللي ثانية)", 0, 500, { Prefs.delayMs }, { Prefs.delayMs = it }))
         
+        // إعدادات الرشاش
+        addView(text(c, "--- إعدادات الرشاش ---", 15f, AMBER, true))
         addView(switch(c, "تفعيل الضغط المتكرر (رشاش)", { Prefs.autoFireEnabled }, { Prefs.autoFireEnabled = it }))
         addView(slider(c, "سرعة الرشاش (مللي ثانية)", 20, 500, { Prefs.autoFireIntervalMs }, { Prefs.autoFireIntervalMs = it }))
 
-        // شفافية القائمة
+        // المظهر
+        addView(text(c, "--- المظهر ---", 15f, AMBER, true))
         addView(slider(c, "شفافية القائمة (%)", 10, 100, { Prefs.panelAlpha }, { Prefs.panelAlpha = it }, onAlpha))
 
+        // الأحجام
+        addView(text(c, "--- أحجام الأزرار ---", 15f, AMBER, true))
         addView(slider(c, "حجم زر الإطلاق", 80, 320, { Prefs.sizeTrigger }, { Prefs.sizeTrigger = it }, onSize))
         addView(slider(c, "حجم زر المنظار", 80, 320, { Prefs.sizeScopeBtn }, { Prefs.sizeScopeBtn = it }, onSize))
         addView(slider(c, "حجم علامة الإطلاق", 30, 136, { Prefs.sizeFireMarker }, { Prefs.sizeFireMarker = it }, onSize))
@@ -133,7 +133,6 @@ object Ui {
     }
 }
 
-/** دائرة بنص: تُستخدم للأزرار وعلامات المواضع */
 class CircleView(
     c: Context,
     private val label: String,
