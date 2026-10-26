@@ -1,88 +1,101 @@
 package com.alphaxk.recoilpad
 
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.IBinder
-import android.os.Parcel
 import android.os.SystemClock
+import android.view.InputDevice
+import android.view.InputEvent
 import android.view.MotionEvent
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.shizuku.Shizuku
+import rikka.shizuku.ShizukuBinderWrapper
+import rikka.shizuku.SystemServiceHelper
+import java.lang.reflect.Method
 
+/** حقن اللمس عبر Shizuku. إصبعان: 0 = الإطلاق، 1 = التصويب */
 object ShizukuBridge {
-    private var inputManager: Any? = null
-    private var injectMethod: java.lang.reflect.Method? = null
-    private var ready = false
+    private var service: Any? = null
+    private var injectMethod: Method? = null
+    @Volatile private var ready = false
 
-    fun init(): Boolean {
-        if (!Shizuku.pingBinder()) return false
-        if (Shizuku.isPreV11() || Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            return false
-        }
-        return try {
-            val smClass = Class.forName("android.os.ServiceManager")
-            val getService = smClass.getMethod("getService", String::class.java)
-            val binder = getService.invoke(null, "input") as IBinder
-            val stubClass = Class.forName("android.hardware.input.IInputManager\$Stub")
-            inputManager = stubClass.getMethod("asInterface", IBinder::class.java).invoke(null, binder)
-            injectMethod = inputManager!!.javaClass.getMethod(
-                "injectInputEvent", android.view.InputEvent::class.java, Int::class.javaPrimitiveType
-            )
-            ready = true
-            true
-        } catch (e: Exception) {
-            ready = false
-            false
-        }
-    }
+    private var fx = 0f
+    private var fy = 0f
+    private var ax = 0f
+    private var ay = 0f
+    private var downTime = 0L
 
     fun isReady() = ready
 
-    fun injectTap(x: Float, y: Float): Boolean {
-        if (!ready) return false
+    fun init(): Boolean {
+        ready = false
         return try {
-            val downTime = SystemClock.uptimeMillis()
-            val event = MotionEvent.obtain(
-                downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0
-            )
-            injectMethod!!.invoke(inputManager, event, 0)
-            event.recycle()
-
-            val upTime = SystemClock.uptimeMillis() + 1
-            val up = MotionEvent.obtain(
-                downTime, upTime, MotionEvent.ACTION_UP, x, y, 0
-            )
-            injectMethod!!.invoke(inputManager, up, 0)
-            up.recycle()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    fun injectSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Int): Boolean {
-        if (!ready) return false
-        return try {
-            val downTime = SystemClock.uptimeMillis()
-            val steps = (durationMs / 16).coerceAtLeast(1)
-            val dx = (x2 - x1) / steps
-            val dy = (y2 - y1) / steps
-
-            var event = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x1, y1, 0)
-            injectMethod!!.invoke(inputManager, event, 0)
-            event.recycle()
-
-            for (i in 1..steps) {
-                val t = downTime + (durationMs * i / steps)
-                event = MotionEvent.obtain(downTime, t, MotionEvent.ACTION_MOVE, x1 + dx * i, y1 + dy * i, 0)
-                injectMethod!!.invoke(inputManager, event, 0)
-                event.recycle()
+            if (!Shizuku.pingBinder()) return false
+            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                HiddenApiBypass.addHiddenApiExemptions("L")
             }
-
-            val upTime = downTime + durationMs
-            event = MotionEvent.obtain(downTime, upTime, MotionEvent.ACTION_UP, x2, y2, 0)
-            injectMethod!!.invoke(inputManager, event, 0)
-            event.recycle()
+            val binder: IBinder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService("input"))
+            val stub = Class.forName("android.hardware.input.IInputManager\$Stub")
+            service = stub.getMethod("asInterface", IBinder::class.java).invoke(null, binder)
+            val iface = Class.forName("android.hardware.input.IInputManager")
+            injectMethod = iface.getMethod(
+                "injectInputEvent", InputEvent::class.java, Int::class.javaPrimitiveType
+            )
+            ready = true
             true
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             false
         }
     }
+
+    private fun send(action: Int, pointers: Int) {
+        if (!ready) return
+        try {
+            val props = Array(pointers) {
+                MotionEvent.PointerProperties().apply {
+                    id = it
+                    toolType = MotionEvent.TOOL_TYPE_FINGER
+                }
+            }
+            val coords = Array(pointers) {
+                MotionEvent.PointerCoords().apply {
+                    x = if (it == 0) fx else ax
+                    y = if (it == 0) fy else ay
+                    pressure = 1f
+                    size = 1f
+                }
+            }
+            val ev = MotionEvent.obtain(
+                downTime, SystemClock.uptimeMillis(), action, pointers, props, coords,
+                0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0
+            )
+            injectMethod!!.invoke(service, ev, 0)
+            ev.recycle()
+        } catch (t: Throwable) {
+            ready = false
+        }
+    }
+
+    private val shift = 8 // MotionEvent.ACTION_POINTER_INDEX_SHIFT
+
+    fun fireDown(x: Float, y: Float) {
+        fx = x; fy = y
+        downTime = SystemClock.uptimeMillis()
+        send(MotionEvent.ACTION_DOWN, 1)
+    }
+
+    fun aimDown(x: Float, y: Float) {
+        ax = x; ay = y
+        send(MotionEvent.ACTION_POINTER_DOWN or (1 shl shift), 2)
+    }
+
+    fun aimMove(y: Float) {
+        ay = y
+        send(MotionEvent.ACTION_MOVE, 2)
+    }
+
+    fun aimUp() = send(MotionEvent.ACTION_POINTER_UP or (1 shl shift), 2)
+
+    fun fireUp() = send(MotionEvent.ACTION_UP, 1)
 }
