@@ -20,11 +20,23 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_HOME/ndk-bundle" >> local.properties
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # هذا السطر يتحقق إذا كان ملف الـ wrapper موجوداً (سبب شائع جداً للفشل)
+      - name: Verify Gradle Wrapper
+        run: ls -la gradle/wrapper/ 
+
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
