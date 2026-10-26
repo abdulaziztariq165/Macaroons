@@ -111,19 +111,20 @@ object Ui {
         return box
     }
 
-    fun settings(c: Context, onSize: () -> Unit = {}) = LinearLayout(c).apply {
+    fun settings(c: Context, onSize: () -> Unit = {}, onAlpha: () -> Unit = {}) = LinearLayout(c).apply {
         orientation = LinearLayout.VERTICAL
-        addView(slider(c, "قوة السحب للأسفل", 0, 100, { Prefs.strength }, { Prefs.strength = it },
+        addView(slider(c, "قوة السحب للأسفل", 1, 100, { Prefs.strength }, { Prefs.strength = it },
             fmt = { "%.1f".format(it / 10f) }))
         
-        // 5 دقائق = 300,000 مللي ثانية
         addView(slider(c, "مدة التعويض (مللي ثانية)", 100, 300000, { Prefs.durationMs }, { Prefs.durationMs = it }))
         addView(slider(c, "تأخير البداية (مللي ثانية)", 0, 500, { Prefs.delayMs }, { Prefs.delayMs = it }))
         
         addView(switch(c, "تفعيل الضغط المتكرر (رشاش)", { Prefs.autoFireEnabled }, { Prefs.autoFireEnabled = it }))
         addView(slider(c, "سرعة الرشاش (مللي ثانية)", 20, 500, { Prefs.autoFireIntervalMs }, { Prefs.autoFireIntervalMs = it }))
 
-        // التحكم بحجم كل زر على حدة (الحد الأقصى 200% من الحجم الافتراضي)
+        // شفافية القائمة
+        addView(slider(c, "شفافية القائمة (%)", 10, 100, { Prefs.panelAlpha }, { Prefs.panelAlpha = it }, onAlpha))
+
         addView(slider(c, "حجم زر الإطلاق", 80, 320, { Prefs.sizeTrigger }, { Prefs.sizeTrigger = it }, onSize))
         addView(slider(c, "حجم زر المنظار", 80, 320, { Prefs.sizeScopeBtn }, { Prefs.sizeScopeBtn = it }, onSize))
         addView(slider(c, "حجم علامة الإطلاق", 30, 136, { Prefs.sizeFireMarker }, { Prefs.sizeFireMarker = it }, onSize))
