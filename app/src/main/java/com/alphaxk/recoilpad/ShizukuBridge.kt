@@ -13,22 +13,22 @@ import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 import java.lang.reflect.Method
 
-/** حقن اللمس عبر Shizuku. إصبعان: 0 = الإطلاق، 1 = التصويب */
+/** حقن لمس متعدد الأصابع عبر Shizuku. كل الأصابع تُحقن كإيماءة واحدة متصلة. */
 object ShizukuBridge {
+    private class P(val id: Int, var x: Float, var y: Float)
+
     private var service: Any? = null
     private var injectMethod: Method? = null
     @Volatile private var ready = false
 
-    private var fx = 0f
-    private var fy = 0f
-    private var ax = 0f
-    private var ay = 0f
+    private val active = ArrayList<P>()
     private var downTime = 0L
+    private val shift = 8 // MotionEvent.ACTION_POINTER_INDEX_SHIFT
 
     fun isReady() = ready
 
     fun init(): Boolean {
-        ready = false
+        if (ready) return true
         return try {
             if (!Shizuku.pingBinder()) return false
             if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) return false
@@ -42,6 +42,7 @@ object ShizukuBridge {
             injectMethod = iface.getMethod(
                 "injectInputEvent", InputEvent::class.java, Int::class.javaPrimitiveType
             )
+            active.clear()
             ready = true
             true
         } catch (t: Throwable) {
@@ -49,25 +50,26 @@ object ShizukuBridge {
         }
     }
 
-    private fun send(action: Int, pointers: Int) {
-        if (!ready) return
+    private fun send(action: Int) {
+        if (!ready || active.isEmpty()) return
         try {
-            val props = Array(pointers) {
+            val n = active.size
+            val props = Array(n) {
                 MotionEvent.PointerProperties().apply {
-                    id = it
+                    id = active[it].id
                     toolType = MotionEvent.TOOL_TYPE_FINGER
                 }
             }
-            val coords = Array(pointers) {
+            val coords = Array(n) {
                 MotionEvent.PointerCoords().apply {
-                    x = if (it == 0) fx else ax
-                    y = if (it == 0) fy else ay
+                    x = active[it].x
+                    y = active[it].y
                     pressure = 1f
                     size = 1f
                 }
             }
             val ev = MotionEvent.obtain(
-                downTime, SystemClock.uptimeMillis(), action, pointers, props, coords,
+                downTime, SystemClock.uptimeMillis(), action, n, props, coords,
                 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0
             )
             injectMethod!!.invoke(service, ev, 0)
@@ -77,25 +79,33 @@ object ShizukuBridge {
         }
     }
 
-    private val shift = 8 // MotionEvent.ACTION_POINTER_INDEX_SHIFT
-
-    fun fireDown(x: Float, y: Float) {
-        fx = x; fy = y
-        downTime = SystemClock.uptimeMillis()
-        send(MotionEvent.ACTION_DOWN, 1)
+    fun down(id: Int, x: Float, y: Float) {
+        if (!ready) return
+        active.removeAll { it.id == id }
+        active.add(P(id, x, y))
+        if (active.size == 1) {
+            downTime = SystemClock.uptimeMillis()
+            send(MotionEvent.ACTION_DOWN)
+        } else {
+            send(MotionEvent.ACTION_POINTER_DOWN or ((active.size - 1) shl shift))
+        }
     }
 
-    fun aimDown(x: Float, y: Float) {
-        ax = x; ay = y
-        send(MotionEvent.ACTION_POINTER_DOWN or (1 shl shift), 2)
+    fun move(id: Int, x: Float, y: Float) {
+        val p = active.firstOrNull { it.id == id } ?: return
+        p.x = x
+        p.y = y
+        send(MotionEvent.ACTION_MOVE)
     }
 
-    fun aimMove(y: Float) {
-        ay = y
-        send(MotionEvent.ACTION_MOVE, 2)
+    fun up(id: Int) {
+        val idx = active.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        if (active.size == 1) {
+            send(MotionEvent.ACTION_UP)
+        } else {
+            send(MotionEvent.ACTION_POINTER_UP or (idx shl shift))
+        }
+        active.removeAt(idx)
     }
-
-    fun aimUp() = send(MotionEvent.ACTION_POINTER_UP or (1 shl shift), 2)
-
-    fun fireUp() = send(MotionEvent.ACTION_UP, 1)
 }
