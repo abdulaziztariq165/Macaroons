@@ -1,65 +1,66 @@
 package com.alphaxk.recoilpad
 
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
+import android.os.SystemClock
 
+/**
+ * عند الضغط: إصبع 1 يضغط زر الإطلاق في اللعبة،
+ * ثم إصبع 2 يبدأ من نقطة التصويب ويسحب للأسفل تدريجياً لتعويض الارتداد.
+ */
 object RecoilEngine {
-    private val handler = Handler(Looper.getMainLooper())
-    private var running = false
+    private val thread = HandlerThread("recoil-input").apply { start() }
+    private val h = Handler(thread.looper)
 
-    fun startFire(x: Float, y: Float) {
-        ShizukuBridge.injectTap(x, y)
-    }
+    private var active = false
+    private var aimOn = false
+    private var t0 = 0L
+    private var ax = 0f
+    private var curY = 0f
+    private var maxY = 0f
 
-    fun startRecoil(centerX: Float, centerY: Float) {
-        if (running) return
-        running = true
-        val strength = Prefs.recoilStrength
-        val duration = Prefs.recoilDurationMs
-        val steps = (duration / 16).coerceAtLeast(1)
-        val deltaPerStep = (strength * 8f) / steps
-
-        var step = 0
-        val runnable = object : Runnable {
-            override fun run() {
-                if (!running || step >= steps) {
-                    running = false
-                    return
+    private val tick = object : Runnable {
+        override fun run() {
+            if (!active) return
+            val t = SystemClock.uptimeMillis() - t0
+            val delay = Prefs.delayMs
+            if (t >= delay) {
+                if (!aimOn) {
+                    ShizukuBridge.aimDown(ax, curY)
+                    aimOn = true
                 }
-                val targetY = centerY + deltaPerStep * (step + 1)
-                ShizukuBridge.injectSwipe(centerX, centerY, centerX, targetY, 16)
-                step++
-                handler.postDelayed(this, 16)
+                if (t - delay <= Prefs.durationMs) {
+                    curY = minOf(curY + Prefs.strength, maxY)
+                    ShizukuBridge.aimMove(curY)
+                }
             }
+            h.postDelayed(this, 16)
         }
-        handler.post(runnable)
     }
 
-    fun stopRecoil() {
-        running = false
-        handler.removeCallbacksAndMessages(null)
+    fun press(fireX: Float, fireY: Float, aimX: Float, aimY: Float, screenH: Float) {
+        h.post {
+            if (active) return@post
+            if (!ShizukuBridge.isReady() && !ShizukuBridge.init()) return@post
+            active = true
+            aimOn = false
+            ax = aimX
+            curY = aimY
+            maxY = screenH - 2f
+            t0 = SystemClock.uptimeMillis()
+            ShizukuBridge.fireDown(fireX, fireY)
+            h.postDelayed(tick, 16)
+        }
     }
 
-    fun fireAndRecoil(x: Float, y: Float, centerX: Float, centerY: Float) {
-        when (Prefs.mode) {
-            0 -> { // hold
-                startFire(x, y)
-                startRecoil(centerX, centerY)
-            }
-            1 -> { // single
-                startFire(x, y)
-                handler.postDelayed({ startRecoil(centerX, centerY) }, 50)
-            }
-            2 -> { // burst
-                val count = Prefs.burstCount
-                val interval = Prefs.burstIntervalMs.toLong()
-                for (i in 0 until count) {
-                    handler.postDelayed({
-                        startFire(x, y)
-                        startRecoil(centerX, centerY)
-                    }, i * interval)
-                }
-            }
+    fun release() {
+        h.post {
+            if (!active) return@post
+            active = false
+            h.removeCallbacks(tick)
+            if (aimOn) ShizukuBridge.aimUp()
+            ShizukuBridge.fireUp()
+            aimOn = false
         }
     }
 }
