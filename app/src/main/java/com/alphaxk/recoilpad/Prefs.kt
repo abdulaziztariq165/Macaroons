@@ -14,19 +14,34 @@ object Prefs {
 
     private fun int(key: String, def: Int) = sp.getInt(key, def)
     private fun put(key: String, v: Int) = sp.edit().putInt(key, v).apply()
+    private fun bool(key: String, def: Boolean) = sp.getBoolean(key, def)
+    private fun put(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
 
     var strength: Int
         get() = int("strength", 6)
         set(v) = put("strength", v)
+        
+    // تم زيادة المدة الافتراضية إلى 10 ثوانٍ (10000 مللي ثانية)
     var durationMs: Int
-        get() = int("duration", 600)
+        get() = int("duration", 10000)
         set(v) = put("duration", v)
+        
     var delayMs: Int
         get() = int("delay", 80)
         set(v) = put("delay", v)
+        
     var triggerSize: Int
         get() = int("trigger_size", 160)
         set(v) = put("trigger_size", v)
+
+    // إعدادات الضغط المتكرر (الرشاش)
+    var autoFireEnabled: Boolean
+        get() = bool("auto_fire_enabled", false)
+        set(v) = put("auto_fire_enabled", v)
+        
+    var autoFireIntervalMs: Int
+        get() = int("auto_fire_interval", 100)
+        set(v) = put("auto_fire_interval", v)
 
     // مراكز العناصر على الشاشة (بالبكسل). -1 = لم تُحدَّد بعد
     var trigX: Int
@@ -48,7 +63,6 @@ object Prefs {
         get() = int("aim_y", -1)
         set(v) = put("aim_y", v)
 
-    // --- المتغيرات المضافة حديثاً ---
     var scopeX: Int
         get() = int("scope_x", -1)
         set(v) = put("scope_x", v)
@@ -68,7 +82,6 @@ object Prefs {
         if (fireX < 0) { fireX = (w * 0.78f).toInt(); fireY = (h * 0.62f).toInt() }
         if (aimX < 0) { aimX = (w * 0.65f).toInt(); aimY = (h * 0.38f).toInt() }
         
-        // إحداثيات افتراضية للمنظار (المنتصف العلوي) وزر المنظار (اليسار السفلي)
         if (scopeX < 0) { scopeX = (w * 0.50f).toInt(); scopeY = (h * 0.30f).toInt() }
         if (scBtnX < 0) { scBtnX = (w * 0.12f).toInt(); scBtnY = (h * 0.78f).toInt() }
     }
