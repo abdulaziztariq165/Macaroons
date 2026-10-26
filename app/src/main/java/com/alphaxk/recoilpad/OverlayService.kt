@@ -223,6 +223,23 @@ class OverlayService : Service() {
                         p.x = (e.rawX - startX).toInt()
                         p.y = (e.rawY - startY).toInt()
                         wm.updateViewLayout(v, p)
+                        
+                        // تحريك القائمة مع زر الضبط
+                        if (panelShown) {
+                            val pp = params[panel]
+                            if (pp != null) {
+                                val dm = resources.displayMetrics
+                                var nx = p.x + p.width + Ui.dp(ui, 10)
+                                var ny = p.y
+                                if (nx + pp.width > dm.widthPixels) nx = p.x - pp.width - Ui.dp(ui, 10)
+                                if (ny + pp.height > dm.heightPixels) ny = dm.heightPixels - pp.height - Ui.dp(ui, 10)
+                                if (nx < 0) nx = Ui.dp(ui, 10)
+                                if (ny < 0) ny = Ui.dp(ui, 10)
+                                pp.x = nx
+                                pp.y = ny
+                                wm.updateViewLayout(panel, pp)
+                            }
+                        }
                     }
                 }
                 MotionEvent.ACTION_UP -> {
@@ -242,7 +259,7 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, baseFlags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = Prefs.editX; y = Prefs.editY; alpha = 0.7f
+            x = Prefs.editX; y = Prefs.editY; alpha = 0.9f
         }
         params[editBtn] = bp
         wm.addView(editBtn, bp)
@@ -253,10 +270,21 @@ class OverlayService : Service() {
             setPadding(Ui.dp(ui, 16), Ui.dp(ui, 12), Ui.dp(ui, 16), Ui.dp(ui, 12))
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             addView(Ui.text(ui, "الإعدادات", 17f, Ui.TEXT, true))
-            addView(Ui.settings(ui) { resizeButtons() })
+            
+            // إضافة دالة تحديث الشفافية
+            addView(Ui.settings(ui, onSize = { resizeButtons() }, onAlpha = { updatePanelAlpha() }))
+            
             addView(Ui.button(ui, "إيقاف الطبقة", Ui.RED, small = true) { stopSelf() })
         }
         panel = ScrollView(ui).apply { addView(content) }
+    }
+
+    private fun updatePanelAlpha() {
+        if (panelShown) {
+            val p = params[panel] ?: return
+            p.alpha = Prefs.panelAlpha / 100f
+            wm.updateViewLayout(panel, p)
+        }
     }
 
     private fun startRecoil(applyCompensation: Boolean) {
@@ -325,14 +353,26 @@ class OverlayService : Service() {
     private fun showPanel() {
         if (panelShown) return
         val dm = resources.displayMetrics
-        val w = minOf(Ui.dp(ui, 300), (dm.widthPixels * 0.5f).toInt())
+        val w = minOf(Ui.dp(ui, 300), (dm.widthPixels * 0.6f).toInt())
         val h = dm.heightPixels - Ui.dp(ui, 130)
+        
+        // حساب موقع القائمة بناءً على موقع زر الضبط
+        val btnP = params[editBtn]!!
+        var startX = btnP.x + btnP.width + Ui.dp(ui, 10)
+        var startY = btnP.y
+        
+        if (startX + w > dm.widthPixels) startX = btnP.x - w - Ui.dp(ui, 10)
+        if (startY + h > dm.heightPixels) startY = dm.heightPixels - h - Ui.dp(ui, 10)
+        if (startX < 0) startX = Ui.dp(ui, 10)
+        if (startY < 0) startY = Ui.dp(ui, 10)
+
         val p = WindowManager.LayoutParams(
             w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, baseFlags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = Ui.dp(ui, 10); y = Ui.dp(ui, 100); alpha = 0.95f
+            x = startX; y = startY; alpha = Prefs.panelAlpha / 100f
         }
+        params[panel] = p
         wm.addView(panel, p)
         panelShown = true
     }
