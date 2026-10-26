@@ -5,10 +5,14 @@ import android.os.HandlerThread
 import android.os.SystemClock
 
 /**
- * عند الضغط: إصبع 1 يضغط زر الإطلاق في اللعبة،
- * ثم إصبع 2 يبدأ من نقطة التصويب ويسحب للأسفل تدريجياً لتعويض الارتداد.
+ * أصابع مُحقنة: 0 = المنظار، 1 = الإطلاق، 2 = التصويب (السحب للأسفل).
+ * كلها تُنفَّذ على خيط واحد بالترتيب.
  */
 object RecoilEngine {
+    private const val SCOPE = 0
+    private const val FIRE = 1
+    private const val AIM = 2
+
     private val thread = HandlerThread("recoil-input").apply { start() }
     private val h = Handler(thread.looper)
 
@@ -26,12 +30,12 @@ object RecoilEngine {
             val delay = Prefs.delayMs
             if (t >= delay) {
                 if (!aimOn) {
-                    ShizukuBridge.aimDown(ax, curY)
+                    ShizukuBridge.down(AIM, ax, curY)
                     aimOn = true
                 }
                 if (t - delay <= Prefs.durationMs) {
-                    curY = minOf(curY + Prefs.strength, maxY)
-                    ShizukuBridge.aimMove(curY)
+                    curY = minOf(curY + Prefs.strength / 10f, maxY)
+                    ShizukuBridge.move(AIM, ax, curY)
                 }
             }
             h.postDelayed(this, 16)
@@ -48,7 +52,7 @@ object RecoilEngine {
             curY = aimY
             maxY = screenH - 2f
             t0 = SystemClock.uptimeMillis()
-            ShizukuBridge.fireDown(fireX, fireY)
+            ShizukuBridge.down(FIRE, fireX, fireY)
             h.postDelayed(tick, 16)
         }
     }
@@ -58,9 +62,20 @@ object RecoilEngine {
             if (!active) return@post
             active = false
             h.removeCallbacks(tick)
-            if (aimOn) ShizukuBridge.aimUp()
-            ShizukuBridge.fireUp()
+            if (aimOn) ShizukuBridge.up(AIM)
+            ShizukuBridge.up(FIRE)
             aimOn = false
         }
+    }
+
+    fun scopeDown(x: Float, y: Float) {
+        h.post {
+            if (!ShizukuBridge.isReady() && !ShizukuBridge.init()) return@post
+            ShizukuBridge.down(SCOPE, x, y)
+        }
+    }
+
+    fun scopeUp() {
+        h.post { ShizukuBridge.up(SCOPE) }
     }
 }
