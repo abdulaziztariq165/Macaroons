@@ -56,7 +56,6 @@ object Ui {
             setOnClickListener { onClick() }
         }
 
-    // --- تم إرجاع دالة card المفقودة هنا ---
     fun card(c: Context) = LinearLayout(c).apply {
         orientation = LinearLayout.VERTICAL
         background = rounded(CARD, dp(c, 18).toFloat())
@@ -65,7 +64,10 @@ object Ui {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = dp(c, 12) }
     }
-    // ----------------------------------------
+
+    fun getLiveTableText(): String {
+        return "السلاح: ${Prefs.currentWeapon}\nالسكوب: ${Prefs.currentScope}\nالقوة: ${Prefs.strength / 10f} | Curve: ${Prefs.curveExp / 10f}"
+    }
 
     fun switch(c: Context, label: String, get: () -> Boolean, set: (Boolean) -> Unit): View {
         val box = LinearLayout(c).apply {
@@ -113,31 +115,36 @@ object Ui {
         return box
     }
 
-    fun settings(c: Context, onSize: () -> Unit = {}, onAlpha: () -> Unit = {}) = LinearLayout(c).apply {
+    fun settings(c: Context, onSize: () -> Unit = {}, onAlpha: () -> Unit = {}, onUpdateTable: () -> Unit = {}) = LinearLayout(c).apply {
         orientation = LinearLayout.VERTICAL
         
-        // إعدادات الارتداد
         addView(text(c, "--- إعدادات التعويض ---", 15f, AMBER, true))
-        addView(slider(c, "قوة السحب (رأسي Y)", 1, 100, { Prefs.strength }, { Prefs.strength = it }))
-        addView(slider(c, "قوة السحب (أفقي X)", -100, 100, { Prefs.strengthX }, { Prefs.strengthX = it }))
-        addView(slider(c, "انحناء الارتداد (Curve)", 10, 30, { Prefs.curveExp }, { Prefs.curveExp = it }, fmt = { "%.1f".format(it / 10f) }))
+        addView(slider(c, "قوة السحب (رأسي Y)", 1, 200, { Prefs.strength }, { Prefs.strength = it; onUpdateTable() }, fmt = { "%.1f".format(it / 10f) }))
+        addView(slider(c, "حساسية السحب (يمين X)", 0, 200, { Prefs.strengthXRight }, { Prefs.strengthXRight = it; onUpdateTable() }, fmt = { "%.1f".format(it / 10f) }))
+        addView(slider(c, "حساسية السحب (يسار X)", 0, 200, { Prefs.strengthXLeft }, { Prefs.strengthXLeft = it; onUpdateTable() }, fmt = { "%.1f".format(it / 10f) }))
+        addView(slider(c, "انحناء الارتداد (Curve)", 10, 30, { Prefs.curveExp }, { Prefs.curveExp = it; onUpdateTable() }, fmt = { "%.1f".format(it / 10f) }))
         
         addView(slider(c, "مدة التعويض (مللي ثانية)", 100, 300000, { Prefs.durationMs }, { Prefs.durationMs = it }))
         addView(slider(c, "تأخير البداية (مللي ثانية)", 0, 500, { Prefs.delayMs }, { Prefs.delayMs = it }))
         
-        // إعدادات الرشاش
         addView(text(c, "--- إعدادات الرشاش ---", 15f, AMBER, true))
         addView(switch(c, "تفعيل الضغط المتكرر (رشاش)", { Prefs.autoFireEnabled }, { Prefs.autoFireEnabled = it }))
         addView(slider(c, "سرعة الرشاش (مللي ثانية)", 20, 500, { Prefs.autoFireIntervalMs }, { Prefs.autoFireIntervalMs = it }))
 
-        // المظهر
+        addView(text(c, "--- إعدادات الجدول ---", 15f, AMBER, true))
+        addView(switch(c, "إظهار الجدول", { Prefs.showLiveTable }, { Prefs.showLiveTable = it; onUpdateTable() }))
+        addView(slider(c, "شفافية الجدول (%)", 10, 100, { Prefs.liveTableAlpha }, { Prefs.liveTableAlpha = it; onUpdateTable() }))
+        addView(slider(c, "حجم خط الجدول", 8, 20, { Prefs.liveTableSize }, { Prefs.liveTableSize = it; onUpdateTable() }))
+
         addView(text(c, "--- المظهر ---", 15f, AMBER, true))
         addView(slider(c, "شفافية القائمة (%)", 10, 100, { Prefs.panelAlpha }, { Prefs.panelAlpha = it }, onAlpha))
 
-        // الأحجام
         addView(text(c, "--- أحجام الأزرار ---", 15f, AMBER, true))
         addView(slider(c, "حجم زر الإطلاق", 80, 320, { Prefs.sizeTrigger }, { Prefs.sizeTrigger = it }, onSize))
         addView(slider(c, "حجم زر المنظار", 80, 320, { Prefs.sizeScopeBtn }, { Prefs.sizeScopeBtn = it }, onSize))
+        addView(slider(c, "حجم زر البيك اليسار", 50, 250, { Prefs.sizePeekLeft }, { Prefs.sizePeekLeft = it }, onSize))
+        addView(slider(c, "حجم زر البيك اليمين", 50, 250, { Prefs.sizePeekRight }, { Prefs.sizePeekRight = it }, onSize))
+        
         addView(slider(c, "حجم علامة الإطلاق", 30, 136, { Prefs.sizeFireMarker }, { Prefs.sizeFireMarker = it }, onSize))
         addView(slider(c, "حجم علامة التصويب", 30, 136, { Prefs.sizeAimMarker }, { Prefs.sizeAimMarker = it }, onSize))
         addView(slider(c, "حجم علامة المنظار", 30, 136, { Prefs.sizeScopeMarker }, { Prefs.sizeScopeMarker = it }, onSize))
