@@ -26,7 +26,6 @@ object Prefs {
         get() = str("curr_scope", "Red Dot / Holo")
         set(v) = put("curr_scope", v)
 
-    // --- إعدادات جدول المعلومات (Live Table) ---
     var showLiveTable: Boolean
         get() = bool("show_live_table", true)
         set(v) = put("show_live_table", v)
@@ -36,7 +35,6 @@ object Prefs {
     var liveTableSize: Int
         get() = int("live_table_size", 12)
         set(v) = put("live_table_size", v)
-    // ---------------------------------------------
 
     var strength: Int
         get() = int("strength", 50)
