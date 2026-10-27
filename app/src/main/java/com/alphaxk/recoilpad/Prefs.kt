@@ -16,17 +16,42 @@ object Prefs {
     private fun put(key: String, v: Int) = sp.edit().putInt(key, v).apply()
     private fun bool(key: String, def: Boolean) = sp.getBoolean(key, def)
     private fun put(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
+    private fun str(key: String, def: String) = sp.getString(key, def) ?: def
+    private fun put(key: String, v: String) = sp.edit().putString(key, v).apply()
+
+    var currentWeapon: String
+        get() = str("curr_weapon", "M416")
+        set(v) = put("curr_weapon", v)
+    var currentScope: String
+        get() = str("curr_scope", "Red Dot / Holo")
+        set(v) = put("curr_scope", v)
+
+    // --- إعدادات جدول المعلومات (Live Table) ---
+    var showLiveTable: Boolean
+        get() = bool("show_live_table", true)
+        set(v) = put("show_live_table", v)
+    var liveTableAlpha: Int
+        get() = int("live_table_alpha", 90)
+        set(v) = put("live_table_alpha", v)
+    var liveTableSize: Int
+        get() = int("live_table_size", 12)
+        set(v) = put("live_table_size", v)
+    // ---------------------------------------------
 
     var strength: Int
-        get() = int("strength", 20) // القوة الرأسية
+        get() = int("strength", 50)
         set(v) = put("strength", v)
         
-    var strengthX: Int
-        get() = int("strength_x", 0) // القوة الأفقية (0 يعني مفيش سحب يمين/شمال)
-        set(v) = put("strength_x", v)
+    var strengthXRight: Int
+        get() = int("strength_x_right", 10)
+        set(v) = put("strength_x_right", v)
+        
+    var strengthXLeft: Int
+        get() = int("strength_x_left", 10)
+        set(v) = put("strength_x_left", v)
         
     var curveExp: Int
-        get() = int("curve_exp", 15) // منحنى التعويض (من 10 لـ 30)
+        get() = int("curve_exp", 15)
         set(v) = put("curve_exp", v)
 
     var durationMs: Int
@@ -48,7 +73,6 @@ object Prefs {
         get() = int("panel_alpha", 90)
         set(v) = put("panel_alpha", v)
 
-    // --- أحجام الأزرار المستقلة ---
     var sizeTrigger: Int
         get() = int("size_trigger", 160)
         set(v) = put("size_trigger", v)
@@ -64,6 +88,12 @@ object Prefs {
     var sizeScopeMarker: Int
         get() = int("size_scope_marker", 68)
         set(v) = put("size_scope_marker", v)
+    var sizePeekLeft: Int
+        get() = int("size_peek_left", 120)
+        set(v) = put("size_peek_left", v)
+    var sizePeekRight: Int
+        get() = int("size_peek_right", 120)
+        set(v) = put("size_peek_right", v)
 
     var editX: Int
         get() = int("edit_x", -1)
@@ -71,7 +101,6 @@ object Prefs {
     var editY: Int
         get() = int("edit_y", -1)
         set(v) = put("edit_y", v)
-
     var trigX: Int
         get() = int("trig_x", -1)
         set(v) = put("trig_x", v)
@@ -102,6 +131,36 @@ object Prefs {
     var scBtnY: Int
         get() = int("sc_btn_y", -1)
         set(v) = put("sc_btn_y", v)
+    var peekLX: Int
+        get() = int("peek_l_x", -1)
+        set(v) = put("peek_l_x", v)
+    var peekLY: Int
+        get() = int("peek_l_y", -1)
+        set(v) = put("peek_l_y", v)
+    var peekRX: Int
+        get() = int("peek_r_x", -1)
+        set(v) = put("peek_r_x", v)
+    var peekRY: Int
+        get() = int("peek_r_y", -1)
+        set(v) = put("peek_r_y", v)
+    var detectX: Int
+        get() = int("detect_x", -1)
+        set(v) = put("detect_x", v)
+    var detectY: Int
+        get() = int("detect_y", -1)
+        set(v) = put("detect_y", v)
+    var liveTableX: Int
+        get() = int("live_table_x", -1)
+        set(v) = put("live_table_x", v)
+    var liveTableY: Int
+        get() = int("live_table_y", -1)
+        set(v) = put("live_table_y", v)
+    var tableToggleX: Int
+        get() = int("table_toggle_x", -1)
+        set(v) = put("table_toggle_x", v)
+    var tableToggleY: Int
+        get() = int("table_toggle_y", -1)
+        set(v) = put("table_toggle_y", v)
 
     fun ensureDefaults(w: Int, h: Int) {
         if (trigX < 0) { trigX = (w * 0.88f).toInt(); trigY = (h * 0.78f).toInt() }
@@ -110,5 +169,10 @@ object Prefs {
         if (scopeX < 0) { scopeX = (w * 0.50f).toInt(); scopeY = (h * 0.30f).toInt() }
         if (scBtnX < 0) { scBtnX = (w * 0.12f).toInt(); scBtnY = (h * 0.78f).toInt() }
         if (editX < 0) { editX = 100; editY = 100 }
+        if (peekLX < 0) { peekLX = (w * 0.20f).toInt(); peekLY = (h * 0.78f).toInt() }
+        if (peekRX < 0) { peekRX = (w * 0.30f).toInt(); peekRY = (h * 0.78f).toInt() }
+        if (detectX < 0) { detectX = (w * 0.50f).toInt(); detectY = (h * 0.10f).toInt() }
+        if (liveTableX < 0) { liveTableX = (w * 0.50f).toInt(); liveTableY = (h * 0.15f).toInt() }
+        if (tableToggleX < 0) { tableToggleX = (w * 0.60f).toInt(); tableToggleY = (h * 0.10f).toInt() }
     }
 }
