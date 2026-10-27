@@ -18,6 +18,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import kotlinx.coroutines.*
 
 class OverlayService : Service() {
@@ -27,16 +28,27 @@ class OverlayService : Service() {
 
     private lateinit var wm: WindowManager
     private lateinit var ui: Context
+    
     private lateinit var trigger: CircleView
     private lateinit var scopeBtn: CircleView
+    private lateinit var peekLeftBtn: CircleView
+    private lateinit var peekRightBtn: CircleView
+    private lateinit var detectBtn: CircleView
+    private lateinit var tableToggleBtn: CircleView // زر إظهار/إخفاء الجدول
+    
     private lateinit var fireMarker: CircleView
     private lateinit var aimMarker: CircleView
     private lateinit var scopeMarker: CircleView
+    
     private lateinit var editBtn: Button
     private lateinit var panel: View
+    private lateinit var liveTable: TextView
+    private lateinit var selectorPanel: View
+    
     private val params = HashMap<View, WindowManager.LayoutParams>()
     private var editing = false
     private var panelShown = false
+    private var selectorShown = false
 
     private var isScoping = false
     private var isFiring = false
@@ -83,15 +95,15 @@ class OverlayService : Service() {
         }
     }
 
-    private fun addWindow(v: View, size: Int, cx: Int, cy: Int, touchable: Boolean) {
+    private fun addWindow(v: View, w: Int, h: Int, cx: Int, cy: Int, touchable: Boolean) {
         val flags = baseFlags or (if (touchable) 0 else WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         val p = WindowManager.LayoutParams(
-            size, size, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = cx - size / 2
-            y = cy - size / 2
+            x = cx - w / 2
+            y = cy - h / 2
             alpha = 0.7f
         }
         params[v] = p
@@ -123,19 +135,58 @@ class OverlayService : Service() {
         }
     }
 
+    private fun updateLiveTable() {
+        if (::liveTable.isInitialized) {
+            liveTable.text = Ui.getLiveTableText()
+            liveTable.textSize = Prefs.liveTableSize.toFloat()
+            liveTable.visibility = if (Prefs.showLiveTable) View.VISIBLE else View.GONE
+            
+            val p = params[liveTable]
+            if (p != null) {
+                p.alpha = Prefs.liveTableAlpha / 100f
+                wm.updateViewLayout(liveTable, p)
+            }
+        }
+    }
+
     private fun buildViews() {
         fireMarker = CircleView(ui, "زر الإطلاق", Ui.BLUE, false)
         aimMarker = CircleView(ui, "التصويب", Ui.GREEN, false)
         scopeMarker = CircleView(ui, "زر المنظار", Ui.AMBER, false)
+        
         trigger = CircleView(ui, "إطلاق", Ui.RED, true)
         scopeBtn = CircleView(ui, "منظار", Ui.AMBER, true)
+        peekLeftBtn = CircleView(ui, "بيك يسار", Ui.GRAY, true)
+        peekRightBtn = CircleView(ui, "بيك يمين", Ui.GRAY, true)
+        detectBtn = CircleView(ui, "تعرف", Ui.BLUE, true)
+        tableToggleBtn = CircleView(ui, "جدول", Ui.GREEN, true) // الزر الجديد
 
-        addWindow(fireMarker, Prefs.sizeFireMarker, Prefs.fireX, Prefs.fireY, false)
-        addWindow(aimMarker, Prefs.sizeAimMarker, Prefs.aimX, Prefs.aimY, false)
-        addWindow(scopeMarker, Prefs.sizeScopeMarker, Prefs.scopeX, Prefs.scopeY, false)
-        addWindow(trigger, Prefs.sizeTrigger, Prefs.trigX, Prefs.trigY, true)
-        addWindow(scopeBtn, Prefs.sizeScopeBtn, Prefs.scBtnX, Prefs.scBtnY, true)
+        addWindow(fireMarker, Prefs.sizeFireMarker, Prefs.sizeFireMarker, Prefs.fireX, Prefs.fireY, false)
+        addWindow(aimMarker, Prefs.sizeAimMarker, Prefs.sizeAimMarker, Prefs.aimX, Prefs.aimY, false)
+        addWindow(scopeMarker, Prefs.sizeScopeMarker, Prefs.sizeScopeMarker, Prefs.scopeX, Prefs.scopeY, false)
         
+        addWindow(trigger, Prefs.sizeTrigger, Prefs.sizeTrigger, Prefs.trigX, Prefs.trigY, true)
+        addWindow(scopeBtn, Prefs.sizeScopeBtn, Prefs.sizeScopeBtn, Prefs.scBtnX, Prefs.scBtnY, true)
+        addWindow(peekLeftBtn, Prefs.sizePeekLeft, Prefs.sizePeekLeft, Prefs.peekLX, Prefs.peekLY, true)
+        addWindow(peekRightBtn, Prefs.sizePeekRight, Prefs.sizePeekRight, Prefs.peekRX, Prefs.peekRY, true)
+        addWindow(detectBtn, 100, 100, Prefs.detectX, Prefs.detectY, true)
+        addWindow(tableToggleBtn, 100, 100, Prefs.tableToggleX, Prefs.tableToggleY, true)
+
+        // Live Table
+        liveTable = TextView(ui).apply {
+            text = Ui.getLiveTableText()
+            setTextColor(Ui.TEXT)
+            textSize = Prefs.liveTableSize.toFloat()
+            setBackgroundColor(android.graphics.Color.parseColor("#AA1A1D24"))
+            setPadding(Ui.dp(ui, 8), Ui.dp(ui, 4), Ui.dp(ui, 8), Ui.dp(ui, 4))
+            visibility = if (Prefs.showLiveTable) View.VISIBLE else View.GONE
+        }
+        addWindow(liveTable, 250, 80, Prefs.liveTableX, Prefs.liveTableY, false)
+        
+        // ضبط شفافية الجدول بناءً على الإعداد
+        params[liveTable]?.alpha = Prefs.liveTableAlpha / 100f
+        wm.updateViewLayout(liveTable, params[liveTable])
+
         fireMarker.visibility = View.GONE
         aimMarker.visibility = View.GONE
         scopeMarker.visibility = View.GONE
@@ -145,10 +196,72 @@ class OverlayService : Service() {
         val dScopeM = dragHandler { x, y -> Prefs.scopeX = x; Prefs.scopeY = y }
         val dTrig = dragHandler { x, y -> Prefs.trigX = x; Prefs.trigY = y }
         val dScopeB = dragHandler { x, y -> Prefs.scBtnX = x; Prefs.scBtnY = y }
+        val dPeekL = dragHandler { x, y -> Prefs.peekLX = x; Prefs.peekLY = y }
+        val dPeekR = dragHandler { x, y -> Prefs.peekRX = x; Prefs.peekRY = y }
+        val dDetect = dragHandler { x, y -> Prefs.detectX = x; Prefs.detectY = y }
+        val dTableToggle = dragHandler { x, y -> Prefs.tableToggleX = x; Prefs.tableToggleY = y }
+        val dTable = dragHandler { x, y -> Prefs.liveTableX = x; Prefs.liveTableY = y }
         
         fireMarker.setOnTouchListener { v, e -> dFire(v, e) }
         aimMarker.setOnTouchListener { v, e -> dAim(v, e) }
         scopeMarker.setOnTouchListener { v, e -> dScopeM(v, e) }
+        liveTable.setOnTouchListener { v, e -> dTable(v, e) } // تقدر تسحب الجدول نفسه عشان تغير مكانه
+        
+        // لمسة زر التحكم بالجدول
+        tableToggleBtn.setOnTouchListener { v, e ->
+            if (editing) {
+                dTableToggle(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        Prefs.showLiveTable = !Prefs.showLiveTable
+                        updateLiveTable()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {}
+                }
+                true
+            }
+        }
+
+        val peekLeftId = RecoilEngine.getPeekLeftId()
+        peekLeftBtn.setOnTouchListener { v, e ->
+            if (editing) {
+                dPeekL(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> RecoilEngine.peekDown(peekLeftId, Prefs.peekLX.toFloat(), Prefs.peekLY.toFloat())
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.peekUp(peekLeftId)
+                }
+                true
+            }
+        }
+
+        val peekRightId = RecoilEngine.getPeekRightId()
+        peekRightBtn.setOnTouchListener { v, e ->
+            if (editing) {
+                dPeekR(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> RecoilEngine.peekDown(peekRightId, Prefs.peekRX.toFloat(), Prefs.peekRY.toFloat())
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> RecoilEngine.peekUp(peekRightId)
+                }
+                true
+            }
+        }
+
+        detectBtn.setOnTouchListener { v, e ->
+            if (editing) {
+                dDetect(v, e)
+            } else {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        if (selectorShown) hideSelector() else showSelector()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {}
+                }
+                true
+            }
+        }
 
         scopeBtn.setOnTouchListener { v, e ->
             if (editing) {
@@ -197,9 +310,7 @@ class OverlayService : Service() {
                         stopAutoFire()
                         RecoilEngine.release()
                     }
-                    MotionEvent.ACTION_CANCEL -> {
-                        // تجاهل
-                    }
+                    MotionEvent.ACTION_CANCEL -> {}
                 }
                 true
             }
@@ -224,7 +335,6 @@ class OverlayService : Service() {
                         p.y = (e.rawY - startY).toInt()
                         wm.updateViewLayout(v, p)
                         
-                        // تحريك القائمة مع زر الضبط
                         if (panelShown) {
                             val pp = params[panel]
                             if (pp != null) {
@@ -270,13 +380,69 @@ class OverlayService : Service() {
             setPadding(Ui.dp(ui, 16), Ui.dp(ui, 12), Ui.dp(ui, 16), Ui.dp(ui, 12))
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             addView(Ui.text(ui, "الإعدادات", 17f, Ui.TEXT, true))
-            
-            // إضافة دالة تحديث الشفافية
-            addView(Ui.settings(ui, onSize = { resizeButtons() }, onAlpha = { updatePanelAlpha() }))
-            
+            addView(Ui.settings(ui, onSize = { resizeButtons() }, onAlpha = { updatePanelAlpha() }, onUpdateTable = { updateLiveTable() }))
             addView(Ui.button(ui, "إيقاف الطبقة", Ui.RED, small = true) { stopSelf() })
         }
         panel = ScrollView(ui).apply { addView(content) }
+    }
+
+    private fun showSelector() {
+        if (selectorShown) return
+        val dm = resources.displayMetrics
+        val w = minOf(Ui.dp(ui, 280), (dm.widthPixels * 0.7f).toInt())
+        val h = minOf(Ui.dp(ui, 400), (dm.heightPixels * 0.6f).toInt())
+        
+        val content = LinearLayout(ui).apply {
+            orientation = LinearLayout.VERTICAL
+            background = Ui.rounded(Ui.CARD, Ui.dp(ui, 18).toFloat())
+            setPadding(Ui.dp(ui, 16), Ui.dp(ui, 12), Ui.dp(ui, 16), Ui.dp(ui, 12))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            
+            addView(Ui.text(ui, "اختر السلاح:", 15f, Ui.AMBER, true))
+            val wScroll = ScrollView(ui).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(ui, 150)) }
+            val wList = LinearLayout(ui).apply { orientation = LinearLayout.VERTICAL }
+            
+            for (weapon in WeaponDB.weapons) {
+                wList.addView(Ui.button(ui, weapon.name, Ui.GRAY, small = true) {
+                    WeaponDB.applyProfile(weapon.name, Prefs.currentScope)
+                    updateLiveTable()
+                    resizeButtons()
+                })
+            }
+            wScroll.addView(wList)
+            addView(wScroll)
+
+            addView(Ui.text(ui, "اختر السكوب:", 15f, Ui.AMBER, true))
+            val sList = LinearLayout(ui).apply { orientation = LinearLayout.VERTICAL }
+            for (scope in WeaponDB.scopes) {
+                sList.addView(Ui.button(ui, scope.first, Ui.GRAY, small = true) {
+                    WeaponDB.applyProfile(Prefs.currentWeapon, scope.first)
+                    updateLiveTable()
+                    resizeButtons()
+                    hideSelector()
+                })
+            }
+            addView(sList)
+            
+            addView(Ui.button(ui, "إغلاق", Ui.RED, small = true) { hideSelector() })
+        }
+
+        val p = WindowManager.LayoutParams(
+            w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, baseFlags, PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = Ui.dp(ui, 20); y = Ui.dp(ui, 150); alpha = 0.95f
+        }
+        selectorPanel = ScrollView(ui).apply { addView(content) }
+        params[selectorPanel] = p
+        wm.addView(selectorPanel, p)
+        selectorShown = true
+    }
+
+    private fun hideSelector() {
+        if (!selectorShown) return
+        try { wm.removeView(selectorPanel) } catch (_: Throwable) {}
+        selectorShown = false
     }
 
     private fun updatePanelAlpha() {
@@ -320,6 +486,8 @@ class OverlayService : Service() {
         val views = mapOf(
             trigger to Prefs.sizeTrigger,
             scopeBtn to Prefs.sizeScopeBtn,
+            peekLeftBtn to Prefs.sizePeekLeft,
+            peekRightBtn to Prefs.sizePeekRight,
             fireMarker to Prefs.sizeFireMarker,
             aimMarker to Prefs.sizeAimMarker,
             scopeMarker to Prefs.sizeScopeMarker
@@ -340,6 +508,7 @@ class OverlayService : Service() {
         stopAutoFire()
         RecoilEngine.release()
         RecoilEngine.scopeUp()
+        hideSelector()
         
         editing = on
         editBtn.text = if (on) "تم ✓" else "ضبط"
@@ -356,7 +525,6 @@ class OverlayService : Service() {
         val w = minOf(Ui.dp(ui, 300), (dm.widthPixels * 0.6f).toInt())
         val h = dm.heightPixels - Ui.dp(ui, 130)
         
-        // حساب موقع القائمة بناءً على موقع زر الضبط
         val btnP = params[editBtn]!!
         var startX = btnP.x + btnP.width + Ui.dp(ui, 10)
         var startY = btnP.y
@@ -389,6 +557,7 @@ class OverlayService : Service() {
         RecoilEngine.release()
         RecoilEngine.scopeUp()
         hidePanel()
+        hideSelector()
         for (v in params.keys) {
             try { wm.removeView(v) } catch (_: Throwable) {}
         }
