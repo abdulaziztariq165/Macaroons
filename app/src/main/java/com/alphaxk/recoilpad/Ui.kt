@@ -56,6 +56,17 @@ object Ui {
             setOnClickListener { onClick() }
         }
 
+    // --- تم إرجاع دالة card المفقودة هنا ---
+    fun card(c: Context) = LinearLayout(c).apply {
+        orientation = LinearLayout.VERTICAL
+        background = rounded(CARD, dp(c, 18).toFloat())
+        setPadding(dp(c, 16), dp(c, 14), dp(c, 16), dp(c, 14))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(c, 12) }
+    }
+    // ----------------------------------------
+
     fun switch(c: Context, label: String, get: () -> Boolean, set: (Boolean) -> Unit): View {
         val box = LinearLayout(c).apply {
             orientation = LinearLayout.HORIZONTAL
